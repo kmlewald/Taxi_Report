@@ -34,44 +34,43 @@ Filtered <- taxi_passengers %>%
   filter(pickup_longitude != 0, pickup_latitude != 0, dropoff_longitude != 0, dropoff_latitude != 0)
 
 
-
+head(Filtered)
 ```
 
 ```{r echo=FALSE}
 #processing
-Squares <- 100
+increment <- 500
 
 
 LowerLat <- min(min(Filtered$pickup_latitude), min(Filtered$dropoff_latitude))-0.00001
 UpperLat <- max(max(Filtered$pickup_latitude), max(Filtered$dropoff_latitude))+0.00001
 LowerLon <- min(min(Filtered$pickup_longitude), min(Filtered$dropoff_longitude))-0.00001
 UpperLon <- max(max(Filtered$pickup_longitude), max(Filtered$dropoff_longitude))+0.00001
-LatIncrements <- (UpperLat - LowerLat)/(Squares**0.5)
-LonIncrements <- (UpperLon - LowerLon)/(Squares**0.5)
+LatIncrements <- (UpperLat - LowerLat)/(increment)
+LonIncrements <- (UpperLon - LowerLon)/(increment)
 
-GridNum <- function(lat, lon) {
-  x_co <- floor(abs(lon - LowerLon)/LonIncrements)+1
-  y_co <- floor(abs(lat - UpperLat)/LatIncrements)
-  Num <- y_co*(Squares**0.5)+x_co
-  return(Num)
+
+round_coord <- function(coordinate, min, max) {
+  unit <- ((abs(max-min))/increment)
+  rounded <-(unit)*(round((coordinate/unit), 0))
+  return(rounded)
 }
 
-Filtered <- Filtered %>%
-  mutate(PickupGrid = GridNum(pickup_latitude, pickup_longitude),
-         DropoffGrid = GridNum(dropoff_latitude, dropoff_longitude),
-         dropoff_latitude = round(dropoff_latitude, digits=3),
-         dropoff_longitude = round(dropoff_longitude, digits=3)) %>%
-  group_by(dropoff_latitude, dropoff_longitude)%>%
-  summarise(frequency = n() )%>%
-  arrange(frequency)
-head(Filtered)
+Rounded <- Filtered %>%
+  mutate(dropoff_latitude = round_coord(dropoff_latitude, LowerLat, UpperLat),
+         dropoff_longitude = round_coord(dropoff_longitude, LowerLon, UpperLon)) %>%
+  group_by(dropoff_longitude, dropoff_latitude)%>%
+  summarise(count = n()) %>%
+  arrange(desc(dropoff_longitude))
+
+head(Rounded)
 ```
 
-```{r}
+```{r fig.width=5, fig.height=5}
 #mapping points
-NYC_map <-get_map(location = 'New York City', zoom = 12)
+NYC_map <-get_map(location = 'New York City', zoom = 11)
 
 ggmap(NYC_map) +
-  geom_tile(data=Filtered,aes(x=dropoff_longitude, y=dropoff_latitude, alpha=frequency), fill='red')
+  geom_tile(data=Rounded,aes(x=dropoff_longitude, y=dropoff_latitude, alpha=count), fill='red')
 ```
 
