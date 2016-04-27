@@ -11,6 +11,7 @@ output:
 ```{r include=FALSE}
 # Don't delete this chunk if you are using the DataComputing package
 library(DataComputing)
+library(ggmap)
 ```
 *Source file* 
 ```{r, results='asis', echo=FALSE}
@@ -19,9 +20,10 @@ includeSourceDocuments()
 <!-- Don't edit the material above this line -->
 
 
-```{r} 
-#reading in the data
-taxi_passengers <- read.csv("C:\\Users\\Kyle\\Dropbox\\Link_Erasmus_Documents\\STAT133\\Final Project\\taxi_passengers_sample.csv")
+```{r echo=FALSE} 
+#reading in the data in windows
+taxi_passengers <- read.csv("C:\\Users\\Kyle\\Dropbox\\Link_Erasmus_Documents\\STAT133\\Final Project\\Taxi_Report\\taxi_passengers_sample.csv")
+
 
 taxi_passengers <- taxi_passengers %>%
   select(Pickup_Time, Dropoff_Time, Passengers, Pickup_Long, Pickup_Lat, Dropoff_Long, Dropoff_Lat)
@@ -35,7 +37,7 @@ Filtered <- taxi_passengers %>%
 
 ```
 
-```{r}
+```{r echo=FALSE}
 #processing
 Squares <- 100
 
@@ -56,12 +58,20 @@ GridNum <- function(lat, lon) {
 
 Filtered <- Filtered %>%
   mutate(PickupGrid = GridNum(pickup_latitude, pickup_longitude),
-         DropoffGrid = GridNum(dropoff_latitude, dropoff_longitude))
+         DropoffGrid = GridNum(dropoff_latitude, dropoff_longitude),
+         dropoff_latitude = round(dropoff_latitude, digits=3),
+         dropoff_longitude = round(dropoff_longitude, digits=3)) %>%
+  group_by(dropoff_latitude, dropoff_longitude)%>%
+  summarise(frequency = n() )%>%
+  arrange(frequency)
 head(Filtered)
 ```
 
 ```{r}
 #mapping points
+NYC_map <-get_map(location = 'New York City', zoom = 12)
 
+ggmap(NYC_map) +
+  geom_tile(data=Filtered,aes(x=dropoff_longitude, y=dropoff_latitude, alpha=frequency), fill='red')
 ```
 
