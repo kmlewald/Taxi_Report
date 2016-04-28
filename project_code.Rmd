@@ -19,58 +19,112 @@ includeSourceDocuments()
 ```
 <!-- Don't edit the material above this line -->
 
+path to full dataset: "C:\\Users\\Kyle\\Desktop\\taxi_passengers.csv"
+path to sample dataset: "C:\\Users\\Kyle\\Dropbox\\Link_Erasmus_Documents\\STAT133\\Final Project\\Taxi_Report\\taxi_passengers_sample.csv"
+second sample set(not working): "C:\\Users\\Kyle\\Desktop\\taxi_sample.csv"
 
+taxi_passengers <- taxi_passengers %>%
+  select(dropoff_datetime, passenger_count, dropoff_longitude, dropoff_latitude, pickup_longitude, pickup_latitude)
 ```{r echo=FALSE} 
 #reading in the data in windows
 taxi_passengers <- read.csv("C:\\Users\\Kyle\\Dropbox\\Link_Erasmus_Documents\\STAT133\\Final Project\\Taxi_Report\\taxi_passengers_sample.csv")
 
-
 taxi_passengers <- taxi_passengers %>%
-  select(Pickup_Time, Dropoff_Time, Passengers, Pickup_Long, Pickup_Lat, Dropoff_Long, Dropoff_Lat)
+  select(Dropoff_Time, Passengers, Dropoff_Long, Dropoff_Lat, Pickup_Long, Pickup_Lat)
 
-names(taxi_passengers) <- c("Pickup_Time", "Dropoff_Time", "Passengers", "pickup_longitude", "pickup_latitude", "dropoff_longitude", "dropoff_latitude")
+
+
+names(taxi_passengers) <- c("Dropoff_Time", "Passengers", "dropoff_longitude", "dropoff_latitude", "pickup_longitude", "pickup_latitude")
 
 Filtered <- taxi_passengers %>% 
-  filter(pickup_longitude != 0, pickup_latitude != 0, dropoff_longitude != 0, dropoff_latitude != 0)
+  filter(dropoff_longitude != 0, dropoff_latitude != 0, pickup_longitude !=0, pickup_latitude != 0)
 
 
 head(Filtered)
+
 ```
 
 ```{r echo=FALSE}
 #processing
-increment <- 500
+increment <- 350
 
 
 LowerLat <- min(min(Filtered$pickup_latitude), min(Filtered$dropoff_latitude))-0.00001
 UpperLat <- max(max(Filtered$pickup_latitude), max(Filtered$dropoff_latitude))+0.00001
 LowerLon <- min(min(Filtered$pickup_longitude), min(Filtered$dropoff_longitude))-0.00001
 UpperLon <- max(max(Filtered$pickup_longitude), max(Filtered$dropoff_longitude))+0.00001
-LatIncrements <- (UpperLat - LowerLat)/(increment)
-LonIncrements <- (UpperLon - LowerLon)/(increment)
+
 
 
 round_coord <- function(coordinate, min, max) {
-  unit <- ((abs(max-min))/increment)
+  unit <- (max-min)/increment
   rounded <-(unit)*(round((coordinate/unit), 0))
   return(rounded)
 }
 
 Rounded <- Filtered %>%
   mutate(dropoff_latitude = round_coord(dropoff_latitude, LowerLat, UpperLat),
-         dropoff_longitude = round_coord(dropoff_longitude, LowerLon, UpperLon)) %>%
+         dropoff_longitude = round_coord(dropoff_longitude, LowerLon, UpperLon))%>%
   group_by(dropoff_longitude, dropoff_latitude)%>%
   summarise(count = n()) %>%
-  arrange(desc(dropoff_longitude))
+  arrange(desc(count))
 
 head(Rounded)
 ```
 
 ```{r fig.width=5, fig.height=5}
-#mapping points
-NYC_map <-get_map(location = 'New York City', zoom = 11)
-
-ggmap(NYC_map) +
-  geom_tile(data=Rounded,aes(x=dropoff_longitude, y=dropoff_latitude, alpha=count), fill='red')
+#setting up map 
+NYC <- c(-73.936650, 40.755323)
+NYC_map <-get_map(location = NYC, zoom = 12)
 ```
 
+
+
+
+```{r}
+#Maps of dropoffs, 1 passenger vs multiple passengers
+
+#first find number of cases with one passenger vs multilple
+
+counts <- Filtered %>%
+  summarise(single=sum(Passengers == 1), group=sum(Passengers > 1))
+
+str(counts)
+  
+singles_count <- counts$single[1]
+group_count <- counts$group[1]
+
+
+```
+
+Singles Count : ```r singles_count```
+Group Count : ```r group_count```
+
+```{r fig.height=8, fig.width=16}
+#Now create a table which has rounded coordinates and groups cases by whether they had one or more passengers. Also create a count proportion for each of these cases, to normalize the facets in the graph.
+
+Group_rides <- Filtered %>%
+  mutate(dropoff_latitude = round_coord(dropoff_latitude, LowerLat, UpperLat),
+         dropoff_longitude = round_coord(dropoff_longitude, LowerLon, UpperLon)) %>%
+  mutate(single = ifelse(Passengers == 1, "Single", "Group"))%>%
+  group_by(dropoff_longitude, dropoff_latitude, single)%>%
+  summarise(count = n()) %>%
+  mutate(count_proportion = ifelse(single == "Single", count/singles_count, count/group_count))%>%
+  arrange(count, decreasing=TRUE)
+  
+
+head(Group_rides)
+Group_rides <- Group_rides %>%
+  filter(dropoff_longitude < -70 & dropoff_longitude > -80,
+         dropoff_latitude > 30)
+```
+
+```{r}
+
+
+ggmap(NYC_map)+ geom_tile(data=Group_rides, aes(x=dropoff_longitude, y=dropoff_latitude, alpha=count_proportion), fill='red') + facet_wrap(~single)
+
+
+
+ggsave("passenger_map.png", width=16, height=8)
+```
